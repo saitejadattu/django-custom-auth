@@ -7,7 +7,8 @@ from rest_framework.decorators import api_view
 import jwt
 # from jwt import inva
 from bcrypt import hashpw, checkpw
-
+from jwt.exceptions import InvalidSignatureError,InvalidAlgorithmError,DecodeError,ExpiredSignatureError
+from datetime import datetime, timedelta
 @api_view(["POST"])
 def register(request):
     data = request.data 
@@ -17,13 +18,18 @@ def register(request):
 
 def login_required(f):
     def wrapper(request):
-        # try:
-        token = request.headers["authorization"].split(" ")[1]
-        details = jwt.decode(token, "QWERTY", algorithms=["HS256"])
-        print(details)
-        # except:
-        #     return JsonResponse({"err":"jwt error"}, status=401)
-        # print()
+        try:
+            token = request.headers["authorization"].split(" ")[1]
+            details = jwt.decode(token, "QWERTY", algorithms=["HS256"])
+            print(details)
+        except InvalidSignatureError:
+            return JsonResponse({"err":"token error"}, status=401)
+        except InvalidAlgorithmError:
+            return JsonResponse({"err":"algorithm or secret key error"}, status=401)
+        except DecodeError:
+            return JsonResponse({"err":"invalid token error"}, status=401)
+        except ExpiredSignatureError:
+            return JsonResponse({"err":"token expired"}, status=401)
         return f(request)
     return wrapper
 
@@ -38,7 +44,7 @@ def login(request):
     isPass = check_password(data['passwod'],isUser.passwod)
     if not isPass:
         return JsonResponse({"err":"invalid creds"}, status=400)
-    token = jwt.encode({"id":isUser.id}, "QWERTY", algorithm="HS256")
+    token = jwt.encode({"id":isUser.id, "iat":datetime.utcnow(), "exp":datetime.utcnow() + timedelta(minutes=1)}, "QWERTY", algorithm="HS256")
     # print(token)
     return JsonResponse({"msg":"login success", "token":token})
 
@@ -49,4 +55,4 @@ def login(request):
 @api_view(["GET"])
 @login_required
 def greet(request):
-    return JsonResponse({"err":"invaklid"})
+    return JsonResponse({"err":"okay"})
